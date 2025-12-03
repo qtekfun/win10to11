@@ -1,0 +1,108 @@
+# win10to11
+
+Script de ayuda para intentar actualizar equipos con hardware no soportado a Windows 11.
+
+IMPORTANTE: Este repositorio contiene un script que aplica bypasses y modifica
+componentes de instalación. Usarlo puede causar pérdida de soporte, problemas
+de estabilidad o fallos en el sistema. EJECUTA BAJO TU RESPONSABILIDAD.
+
+## Contenido
+
+- `win10to11.ps1` : Script principal para aplicar claves de registro, crear
+  backups de `appraiserres.dll` y lanzar `setup.exe` de Windows 11.
+
+## Requisitos
+
+- PowerShell (ejecutar en sesión con privilegios de Administrador).
+- Archivos de la ISO de Windows 11 copiados en una carpeta local (por ejemplo
+  `C:\Win11_Source` o `D:\Win11`).
+
+## Uso básico
+
+Abrir PowerShell como administrador y ejecutar:
+
+```powershell
+.\win10to11.ps1 -InstallerPath 'D:\Win11' -Force
+```
+
+Opciones principales:
+
+- `-InstallerPath <ruta>` : Ruta donde están los archivos de la ISO. (Por
+  defecto `C:\Win11_Source`).
+- `-DryRun` : Simula las acciones sin modificar el sistema ni archivos.
+- `-Force` : Omite prompts de confirmación (el script ya intenta ser no
+  interactivo en la mayoría de los pasos).
+- `-NoReboot` : Lanza el instalador con `/noreboot` (comportamiento por defecto).
+- `-BypassOnly` : Solo aplica los cambios de registro necesarios para el bypass.
+- `-Restore` : Intenta restaurar `appraiserres.dll` desde backups creados y
+  eliminar las claves de registro creadas por el script.
+
+Ejemplos:
+
+- Dry run, revisar qué haría el script:
+
+```powershell
+.\win10to11.ps1 -InstallerPath 'D:\Win11' -DryRun
+```
+
+- Aplicar solo las claves de bypass en el registro:
+
+```powershell
+.\win10to11.ps1 -InstallerPath 'D:\Win11' -BypassOnly
+```
+
+- Restaurar cambios (si se hicieron backups):
+
+```powershell
+.\win10to11.ps1 -InstallerPath 'D:\Win11' -Restore
+```
+
+## Cómo funciona (resumen)
+
+- Comprueba que `setup.exe` exista en la ruta indicada.
+- Inyecta claves en `HKLM:\SYSTEM\Setup\LabConfig` y `HKLM:\SYSTEM\Setup\MoSetup`.
+- Hace backup de `sources\appraiserres.dll` y lo reemplaza por un archivo vacío
+  para evitar que el instalador bloquee la actualización.
+- Lanza `setup.exe` con argumentos silenciosos y `DynamicUpdate` deshabilitado.
+
+## Riesgos y consejos
+
+- Siempre crea una copia completa del sistema (imagen/backup) antes de probar.
+- Prueba primero en una máquina virtual o equipo no crítico.
+- La eliminación o modificación de DLLs y claves del registro tiene riesgo de
+  dejar el sistema en estado inestable.
+- El uso de este script puede violar los términos de soporte de Microsoft.
+
+## Contribuir
+
+Si quieres mejorar el script, abre un issue o un pull request con tus cambios.
+
+## Licencia
+
+Este repositorio no incluye una licencia específica; asume responsabilidad del
+uso en tu entorno. Añade una licencia si quieres permitir contribuciones con
+condiciones claras.
+
+**Uso remoto (descarga y ejecución directa)**
+
+Si prefieres no copiar manualmente el script a la máquina objetivo, puedes
+descargar y ejecutar un script remoto directamente desde GitHub. Ten extremo
+cuido: ejecutar código remoto con `iex` es peligroso si no confías plenamente
+en el origen.
+
+Ejemplo (PowerShell, ejecutar como Administrador):
+
+```powershell
+irm https://raw.githubusercontent.com/qtekfun/WindowsBootstrap/refs/heads/master/SetupBootstrap.ps1 | iex
+```
+
+Nota: la forma más común y ligeramente más corta del URL raw es:
+
+```powershell
+irm https://raw.githubusercontent.com/qtekfun/WindowsBootstrap/master/SetupBootstrap.ps1 | iex
+```
+
+Advertencias:
+- Verifica el contenido del script antes de ejecutarlo: en otra sesión PowerShell, descarga primero con `irm <url> | Out-File .\temp.ps1` y revisa `temp.ps1`.
+- Ejecutar `iex` con URLs desconocidas puede comprometer el sistema.
+- Recomiendo usar `-DryRun` y probar en una VM antes de ejecutar en equipos de producción.
