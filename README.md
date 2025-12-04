@@ -14,21 +14,31 @@ de estabilidad o fallos en el sistema. EJECUTA BAJO TU RESPONSABILIDAD.
 ## Requisitos
 
 - PowerShell (ejecutar en sesión con privilegios de Administrador).
-- Archivos de la ISO de Windows 11 copiados en una carpeta local (por ejemplo
-  `C:\Win11_Source` o `D:\Win11`).
+- El script puede usar una carpeta con los archivos de la ISO o montar un
+  archivo `.iso` y usar la unidad montada. Puedes pasar `-InstallerPath` con
+  la carpeta de los archivos o `-ISOPath` con el archivo `.iso`. Si no pasas
+  ninguno, el script intentará detectar una `.iso` en el directorio actual
+  y montarla automáticamente.
 
 ## Uso básico
 
-Abrir PowerShell como administrador y ejecutar:
+Abrir PowerShell como administrador y ejecutar. Ejemplos:
 
 ```powershell
+# Usar una carpeta con archivos descomprimidos
 .\win10to11.ps1 -InstallerPath 'D:\Win11' -Force
+
+# Montar y usar un archivo ISO (se desmonta automáticamente al terminar)
+.\win10to11.ps1 -ISOPath 'D:\ISOs\Win11_Pro.iso' -Force
+
+# Ejecutar desde la carpeta que contiene la .iso (el script intentará detectarla)
+.\win10to11.ps1 -Force
 ```
 
 Opciones principales:
 
-- `-InstallerPath <ruta>` : Ruta donde están los archivos de la ISO. (Por
-  defecto `C:\Win11_Source`).
+- `-InstallerPath <ruta>` : Ruta donde están los archivos de la ISO (carpeta con `setup.exe`).
+- `-ISOPath <ruta.iso>` : Ruta al archivo `.iso`; el script lo montará y usará la unidad montada.
 - `-DryRun` : Simula las acciones sin modificar el sistema ni archivos.
 - `-Force` : Omite prompts de confirmación (el script ya intenta ser no
   interactivo en la mayoría de los pasos).

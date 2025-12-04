@@ -11,8 +11,10 @@
     implicaciones legales y de soporte es responsabilidad del usuario.
 
 .PARAMETER InstallerPath
-    Ruta donde se han copiado los archivos de la ISO de Windows 11. Por defecto
-    `C:\Win11_Source`.
+    Ruta a la carpeta donde están los archivos de la ISO de Windows 11
+    (carpeta que contiene `setup.exe`). Opcional: si no se proporciona,
+    el script intentará detectar y montar un archivo `.iso` en el directorio
+    actual o usará `-ISOPath` si se proporciona.
 
 .PARAMETER DryRun
     Simula las acciones sin modificarlas (no cambia el registro ni archivos).
@@ -38,8 +40,11 @@ NOTA: Ejecutar con privilegios de Administrador.
 
 [CmdletBinding(SupportsShouldProcess=$true,DefaultParameterSetName='Run')]
 param(
-    [Parameter(Position=0)]
-    [string]$InstallerPath = 'C:\Win11_Source',
+    [Parameter(Position=0, HelpMessage='Ruta a la carpeta con los archivos de la ISO. Si no se pasa, se intentará detectar y montar un .iso en el directorio actual.')]
+    [string]$InstallerPath,
+
+    [Parameter(Position=1, HelpMessage='Ruta al archivo .iso (opcional). Si se proporciona, el script montará la ISO y usará su unidad.')]
+    [string]$ISOPath,
 
     [switch]$DryRun,
     [switch]$Force,
@@ -172,10 +177,81 @@ try {
     exit 1
 }
 
+
 Clear-Host
 Write-Log 'INICIANDO PROTOCOLO DE ACTUALIZACION A WINDOWS 11 (PARA HARDWARE NO SOPORTADO)' 'INFO'
 
-$SetupFile = Join-Path -Path $InstallerPath -ChildPath 'setup.exe'
+# Soporte para recibir un .iso y montarlo automáticamente o detectar un .iso
+$mountedISO = $false
+$mountedImagePath = $null
+
+function Mount-ISO-AndGetRoot {
+    param([string]$IsoFile)
+    $before = (Get-PSDrive -PSProvider FileSystem).Name
+    try {
+        Mount-DiskImage -ImagePath $IsoFile -ErrorAction Stop | Out-Null
+        Start-Sleep -Milliseconds 500
+        $after = (Get-PSDrive -PSProvider FileSystem).Name
+        $new = ($after | Where-Object { $before -notcontains $_ })[0]
+        if ($new) { return "$new:\" } else { return $null }
+    } catch {
+        Write-Log "No se pudo montar ISO: $_" 'ERROR'
+        return $null
+    }
+}
+
+$SetupFile = $null
+
+# Si se pasa -ISOPath y es un archivo .iso, intentar montarlo
+if ($ISOPath) {
+    if (Test-Path $ISOPath -PathType Leaf -ErrorAction SilentlyContinue) {
+        if ($ISOPath.ToLower().EndsWith('.iso')) {
+            if (-not $DryRun) {
+                $root = Mount-ISO-AndGetRoot -IsoFile $ISOPath
+                if ($root) {
+                    $InstallerPath = $root.TrimEnd('\')
+                    $mountedISO = $true
+                    $mountedImagePath = $ISOPath
+                } else {
+                    Write-Log "No se pudo obtener la unidad de la ISO montada." 'WARN'
+                }
+            } else {
+                Write-Log "DryRun: se habría montado la ISO $ISOPath" 'INFO'
+            }
+        } else {
+            # Si se pasó una carpeta en ISOPath
+            $InstallerPath = $ISOPath
+        }
+    } else {
+        Write-Log "La ruta de ISO indicada no existe: $ISOPath" 'WARN'
+    }
+}
+
+# Si no nos pasaron InstallerPath, intentar detectar una .iso en el directorio actual
+if (-not $InstallerPath) {
+    $isoFound = Get-ChildItem -Path (Get-Location) -Filter '*.iso' -File -ErrorAction SilentlyContinue | Select-Object -First 1
+    if ($isoFound) {
+        Write-Log "ISO detectada en el directorio actual: $($isoFound.FullName)" 'INFO'
+        if (-not $DryRun) {
+            $root = Mount-ISO-AndGetRoot -IsoFile $isoFound.FullName
+            if ($root) {
+                $InstallerPath = $root.TrimEnd('\')
+                $mountedISO = $true
+                $mountedImagePath = $isoFound.FullName
+            } else {
+                Write-Log "No se pudo montar la ISO detectada." 'WARN'
+            }
+        } else {
+            Write-Log "DryRun: se habría montado la ISO $($isoFound.FullName)" 'INFO'
+            $InstallerPath = Split-Path -Path $isoFound.FullName -Parent
+        }
+    }
+}
+
+# Si tenemos InstallerPath (directorio con archivos de instalación), construir SetupFile
+if ($InstallerPath) {
+    $SetupFile = Join-Path -Path $InstallerPath -ChildPath 'setup.exe'
+}
 
 if ($Restore) {
     Write-Log 'Modo RESTAURACION seleccionado.' 'INFO'
@@ -185,12 +261,19 @@ if ($Restore) {
     } catch {
         Write-Log "Error durante restauración: $_" 'ERROR'
     }
+    # si montamos una ISO anteriormente y no era DryRun, intentar desmontarla
+    if ($mountedISO -and -not $DryRun -and $mountedImagePath) {
+        try { Dismount-DiskImage -ImagePath $mountedImagePath -ErrorAction Stop; Write-Log 'ISO desmontada tras restauración.' 'INFO' } catch { Write-Log "No se pudo desmontar la ISO: $_" 'WARN' }
+    }
     exit 0
 }
 
-if (-not (Test-Path $SetupFile)) {
+if (-not $SetupFile -or -not (Test-Path $SetupFile)) {
     Write-Log "No se encuentra el instalador en: $InstallerPath" 'ERROR'
-    Write-Host 'Por favor copia los archivos de la ISO a esa carpeta antes de ejecutar este script.' -ForegroundColor Red
+    Write-Host 'Por favor monta la ISO o copia los archivos de la ISO a una carpeta y pasa su ruta con -InstallerPath, o pase -ISOPath al archivo .iso.' -ForegroundColor Red
+    if ($mountedISO -and -not $DryRun -and $mountedImagePath) {
+        try { Dismount-DiskImage -ImagePath $mountedImagePath -ErrorAction SilentlyContinue; Write-Log 'ISO desmontada tras error.' 'DEBUG' } catch {}
+    }
     exit 2
 }
 
@@ -232,7 +315,14 @@ try {
     Write-Host '---------------------------------------------------------'
 } catch {
     Write-Log "Error al ejecutar setup.exe: $_" 'ERROR'
+    if ($mountedISO -and -not $DryRun -and $mountedImagePath) {
+        try { Dismount-DiskImage -ImagePath $mountedImagePath -ErrorAction SilentlyContinue; Write-Log 'ISO desmontada tras fallo al ejecutar.' 'DEBUG' } catch {}
+    }
     exit 3
+} finally {
+    if ($mountedISO -and -not $DryRun -and $mountedImagePath) {
+        try { Dismount-DiskImage -ImagePath $mountedImagePath -ErrorAction Stop; Write-Log 'ISO desmontada correctamente.' 'INFO' } catch { Write-Log "No se pudo desmontar la ISO automáticamente: $_" 'WARN' }
+    }
 }
 
 exit 0
