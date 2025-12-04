@@ -83,26 +83,59 @@ Este repositorio no incluye una licencia específica; asume responsabilidad del
 uso en tu entorno. Añade una licencia si quieres permitir contribuciones con
 condiciones claras.
 
-**Uso remoto (descarga y ejecución directa)**
+**Uso remoto (descarga y ejecución directa — este repo)**
 
-Si prefieres no copiar manualmente el script a la máquina objetivo, puedes
-descargar y ejecutar un script remoto directamente desde GitHub. Ten extremo
-cuido: ejecutar código remoto con `iex` es peligroso si no confías plenamente
-en el origen.
+Si prefieres ejecutar el script directamente desde este repositorio remoto, puedes
+usar `irm | iex` apuntando al `raw` de este mismo repo. Ten extremo cuidado: ejecutar
+código remoto con `iex` es peligroso si no confías plenamente en el origen.
 
 Ejemplo (PowerShell, ejecutar como Administrador):
 
 ```powershell
-irm https://raw.githubusercontent.com/qtekfun/WindowsBootstrap/refs/heads/master/SetupBootstrap.ps1 | iex
+irm https://raw.githubusercontent.com/qtekfun/win10to11/master/win10to11.ps1 | iex
 ```
 
-Nota: la forma más común y ligeramente más corta del URL raw es:
+Comando alternativo (ejecutar en un proceso PowerShell temporal con política Bypass):
 
 ```powershell
-irm https://raw.githubusercontent.com/qtekfun/WindowsBootstrap/master/SetupBootstrap.ps1 | iex
+powershell -NoProfile -ExecutionPolicy Bypass -Command "irm 'https://raw.githubusercontent.com/qtekfun/win10to11/master/win10to11.ps1' | iex"
+```
+
+Recomendación segura (descargar, revisar, ejecutar):
+
+```powershell
+irm https://raw.githubusercontent.com/qtekfun/win10to11/master/win10to11.ps1 | Out-File .\temp_win10to11.ps1
+notepad .\temp_win10to11.ps1   # revisar manualmente
+powershell -NoProfile -ExecutionPolicy Bypass -File .\temp_win10to11.ps1 -InstallerPath 'D:\Win11' -DryRun
 ```
 
 Advertencias:
-- Verifica el contenido del script antes de ejecutarlo: en otra sesión PowerShell, descarga primero con `irm <url> | Out-File .\temp.ps1` y revisa `temp.ps1`.
-- Ejecutar `iex` con URLs desconocidas puede comprometer el sistema.
-- Recomiendo usar `-DryRun` y probar en una VM antes de ejecutar en equipos de producción.
+- Verifica el contenido del script antes de ejecutarlo. Descargar y revisar localmente es la opción más segura.
+- Ejecutar `iex` con URLs no verificadas puede comprometer el sistema.
+- Usa `-DryRun` y prueba en una VM antes de ejecutar en equipos de producción.
+
+Cómo habilitar la ejecución de scripts (opciones):
+
+- Habilitar permanentemente para el usuario actual (RemoteSigned recomendado):
+
+```powershell
+Set-ExecutionPolicy RemoteSigned -Scope CurrentUser -Force
+```
+
+- Habilitar solo para un comando (no cambia la configuración del sistema):
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -Command "irm '<URL>' | iex"
+```
+
+- Para mayor seguridad, descarga primero y verifica el hash antes de ejecutar:
+
+```powershell
+irm https://raw.githubusercontent.com/qtekfun/win10to11/master/win10to11.ps1 -OutFile .\temp_win10to11.ps1
+Get-FileHash .\temp_win10to11.ps1 -Algorithm SHA256
+# Revisar el archivo manualmente y comparar hash con el publicado (si existe)
+```
+
+Notas finales:
+- El script requiere ejecución en una sesión con privilegios de Administrador.
+- Preferible probar en un entorno controlado/VM antes de usar en producción.
